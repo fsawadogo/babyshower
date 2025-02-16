@@ -103,7 +103,7 @@ function PublicPage() {
             <h2 className="text-3xl font-bold text-gray-800 mb-4">Liste de Naissance</h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
               Votre présence est notre plus beau cadeau, mais si vous souhaitez offrir quelque chose,
-              nous avons créé une liste de naissance sur Amazon :
+              nous avons créé une liste de naissance sur MyRegistry :
             </p>
           </div>
           <div className="max-w-md mx-auto">
