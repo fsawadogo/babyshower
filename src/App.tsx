@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { Heart, Gift, Calendar, MapPin, Clock, Send } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import AdminDashboard from './components/AdminDashboard';
 import PublicPage from './components/PublicPage';
@@ -88,7 +87,7 @@ function LoginPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-sage-700 mb-1">
-                Password
+                Mot de passe
               </label>
               <input
                 type="password"

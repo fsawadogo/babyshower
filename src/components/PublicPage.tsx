@@ -108,10 +108,10 @@ function PublicPage() {
           </div>
           <div className="max-w-md mx-auto">
             <a
-              href="https://www.amazon.ca/registry/wishlist/1234567890"
+              href="https://www.myregistry.com/default.aspx?cloc=ca&lang=fr"
               className="block bg-white p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow text-center"
             >
-              <h3 className="text-2xl font-semibold text-gray-800 mb-2">Amazon</h3>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-2">Registre</h3>
               <p className="text-sage-600 mt-2">Voir la Liste →</p>
             </a>
           </div>
