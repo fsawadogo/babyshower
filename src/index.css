@@ -1,3 +1,99 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #4c584c;
+    --color-primary-dark: #3e463e;
+    --color-primary-light: #637363;
+    --color-secondary: #637363;
+    --color-secondary-dark: #4c584c;
+    --color-secondary-light: #7d8f7d;
+    --color-accent: #a3b1a3;
+    --color-accent-dark: #7d8f7d;
+    --color-accent-light: #c7d0c7;
+    --color-background: #f6f7f6;
+    --color-text: #2d312d;
+    --color-text-dark: #1a1a1a;
+    --color-text-light: #4c584c;
+  }
+
+  body {
+    @apply bg-background text-text transition-colors duration-200;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply border-gray-300 text-gray-900;
+    background-color: rgba(255, 255, 255, 0.5);
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-primary ring-2 ring-gray-200 outline-none;
+  }
+
+  /* Table styles */
+  tbody tr:hover {
+    background-color: rgba(249, 250, 251, 0.5);
+  }
+
+  thead {
+    background-color: rgba(249, 250, 251, 0.8);
+  }
+
+  thead th {
+    color: #4B5563;
+  }
+
+  tbody td {
+    border-color: #E5E7EB;
+  }
+
+  /* Button styles */
+  button.hover\:bg-gray-50:hover {
+    background-color: rgba(249, 250, 251, 0.8);
+  }
+
+  /* Gray text button styles */
+  .btn-gray {
+    color: #6B7280;
+  }
+
+  .btn-gray:hover {
+    color: #374151;
+  }
+
+  /* Form styles */
+  label {
+    color: #374151;
+  }
+
+  /* Status badges */
+  .status-badge {
+    @apply px-2 py-1 text-xs font-semibold rounded-full;
+  }
+
+  .status-badge-success {
+    background-color: #DEF7EC;
+    color: #03543F;
+  }
+
+  .status-badge-error {
+    background-color: #FDE8E8;
+    color: #9B1C1C;
+  }
+
+  .status-badge-warning {
+    background-color: #FEF3C7;
+    color: #92400E;
+  }
+
+  /* Backdrop blur styles */
+  .backdrop-blur {
+    backdrop-filter: blur(8px);
+  }
+}

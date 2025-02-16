@@ -2,6 +2,18 @@ import React from 'react';
 import { Heart, Gift, Calendar, MapPin, Clock, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+type EventSettings = {
+  event_date: string;
+  event_time_start: string;
+  event_time_end: string;
+  event_location: string;
+  hero_title: string;
+  hero_subtitle: string;
+  hero_image: string;
+  footer_text: string;
+  footer_signature: string;
+};
+
 function PublicPage() {
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
@@ -10,6 +22,50 @@ function PublicPage() {
   const [guests, setGuests] = React.useState(1);
   const [formError, setFormError] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [settings, setSettings] = React.useState<EventSettings>({
+    event_date: '2025-03-15',
+    event_time_start: '14:30',
+    event_time_end: '18:00',
+    event_location: 'À confirmer',
+    hero_title: 'Bienvenue Bébé Sawadogo',
+    hero_subtitle: 'Rejoignez-nous pour célébrer notre petit miracle',
+    hero_image: 'https://images.unsplash.com/photo-1558244661-d248897f7bc4?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80',
+    footer_text: 'Avec amour,',
+    footer_signature: 'La Famille Sawadogo'
+  });
+
+  React.useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*');
+
+      if (error) throw error;
+
+      if (data) {
+        const settingsObj: Record<string, string> = {};
+        data.forEach(setting => {
+          settingsObj[setting.key] = setting.value;
+        });
+        setSettings(settingsObj as unknown as EventSettings);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(date);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,84 +105,86 @@ function PublicPage() {
     }
   };
 
-  const inputClasses = "mt-1 block w-full px-4 py-3 rounded-lg border border-sage-200 bg-white/50 backdrop-blur-sm shadow-sm transition-all duration-200 focus:border-sage-400 focus:ring-2 focus:ring-sage-200 focus:ring-opacity-50 focus:outline-none hover:border-sage-300";
-  const labelClasses = "block text-sm font-medium text-sage-700 mb-1";
+  const inputClasses = "mt-1 block w-full px-4 py-3 rounded-lg border border-gray-300 bg-white/50 backdrop-blur-sm shadow-sm transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-gray-200 focus:outline-none hover:border-primary";
+  const labelClasses = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
     <>
       {/* Hero Section */}
       <div 
-        className="h-[60vh] bg-cover bg-center relative"
+        className="min-h-[60vh] md:h-[60vh] bg-cover bg-center relative"
         style={{
-          backgroundImage: 'url("https://images.unsplash.com/photo-1558244661-d248897f7bc4?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80")'
+          backgroundImage: `url("${settings.hero_image}")`,
+          backgroundPosition: 'center',
+          backgroundSize: 'cover'
         }}
       >
-        <div className="absolute inset-0 bg-sage-100/80 backdrop-blur-sm">
-          <div className="container mx-auto px-4 h-full flex flex-col items-center justify-center text-center">
-            <Heart className="w-16 h-16 text-sage-600 mb-6" />
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-800 mb-4">
-              Bienvenue Bébé Sawadogo
+        <div className="absolute inset-0 bg-white/40 backdrop-blur-sm">
+          <div className="container mx-auto px-4 h-full flex flex-col items-center justify-center text-center py-12 md:py-0">
+            <Heart className="w-12 h-12 md:w-16 md:h-16 text-primary mb-4 md:mb-6" />
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-gray-800 mb-3 md:mb-4 leading-tight">
+              {settings.hero_title}
             </h1>
-            <p className="text-xl md:text-2xl text-gray-600">
-              Rejoignez-nous pour célébrer notre petit miracle
+            <p className="text-lg md:text-xl lg:text-2xl text-gray-600 px-4 max-w-3xl">
+              {settings.hero_subtitle}
             </p>
           </div>
         </div>
       </div>
 
       {/* Event Details */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <Calendar className="w-8 h-8 text-sage-600 mx-auto mb-4" />
-            <h3 className="font-semibold text-gray-800">Date</h3>
-            <p className="text-gray-600">15 Mars 2025</p>
+      <div className="container mx-auto px-4 py-8 md:py-16">
+        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+          <div className="text-center bg-white/50 backdrop-blur-sm p-4 md:p-6 rounded-lg shadow-sm">
+            <Calendar className="w-8 h-8 text-primary mx-auto mb-4" />
+            <h3 className="font-semibold text-gray-800 mb-2">Date</h3>
+            <p className="text-gray-600">{formatDate(settings.event_date)}</p>
           </div>
-          <div className="text-center">
-            <Clock className="w-8 h-8 text-sage-600 mx-auto mb-4" />
-            <h3 className="font-semibold text-gray-800">Heure</h3>
-            <p className="text-gray-600">14h30 - 18h00</p>
+          <div className="text-center bg-white/50 backdrop-blur-sm p-4 md:p-6 rounded-lg shadow-sm">
+            <Clock className="w-8 h-8 text-primary mx-auto mb-4" />
+            <h3 className="font-semibold text-gray-800 mb-2">Heure</h3>
+            <p className="text-gray-600">{settings.event_time_start} - {settings.event_time_end}</p>
           </div>
-          <div className="text-center">
-            <MapPin className="w-8 h-8 text-sage-600 mx-auto mb-4" />
-            <h3 className="font-semibold text-gray-800">Lieu</h3>
-            <p className="text-gray-600">À confirmer</p>
+          <div className="text-center bg-white/50 backdrop-blur-sm p-4 md:p-6 rounded-lg shadow-sm">
+            <MapPin className="w-8 h-8 text-primary mx-auto mb-4" />
+            <h3 className="font-semibold text-gray-800 mb-2">Lieu</h3>
+            <p className="text-gray-600">{settings.event_location}</p>
           </div>
         </div>
       </div>
 
       {/* Registry Section */}
-      <div className="bg-sage-50 py-16">
+      <div className="bg-white/50 py-8 md:py-16">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Gift className="w-12 h-12 text-sage-600 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Liste de Naissance</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+          <div className="text-center mb-6 md:mb-12">
+            <Gift className="w-10 h-10 md:w-12 md:h-12 text-primary mx-auto mb-4" />
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">Liste de Naissance</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto px-4">
               Votre présence est notre plus beau cadeau, mais si vous souhaitez offrir quelque chose,
-              nous avons créé une liste de naissance sur MyRegistry :
+              nous avons créé une liste de naissance sur Amazon :
             </p>
           </div>
-          <div className="max-w-md mx-auto">
+          <div className="max-w-md mx-auto px-4">
             <a
-              href="https://www.myregistry.com/default.aspx?cloc=ca&lang=fr"
-              className="block bg-white p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow text-center"
+              href="#"
+              className="block bg-white p-6 md:p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow text-center active:transform active:scale-[0.98]"
             >
-              <h3 className="text-2xl font-semibold text-gray-800 mb-2">Registre</h3>
-              <p className="text-sage-600 mt-2">Voir la Liste →</p>
+              <h3 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2">Amazon</h3>
+              <p className="text-primary mt-2">Voir la Liste →</p>
             </a>
           </div>
         </div>
       </div>
 
       {/* RSVP Form */}
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 py-8 md:py-16">
         <div className="max-w-xl mx-auto">
-          <div className="text-center mb-12">
-            <Send className="w-12 h-12 text-sage-600 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">RSVP</h2>
-            <p className="text-gray-600">Merci de nous indiquer si vous pourrez être présent à notre célébration</p>
+          <div className="text-center mb-6 md:mb-12">
+            <Send className="w-10 h-10 md:w-12 md:h-12 text-primary mx-auto mb-4" />
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">RSVP</h2>
+            <p className="text-gray-600 px-4">Merci de nous indiquer si vous pourrez être présent à notre célébration</p>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-8 bg-white/40 backdrop-blur-sm p-8 rounded-xl shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6 bg-white/40 backdrop-blur-sm p-4 md:p-8 rounded-xl shadow-sm mx-4 md:mx-0">
             <div>
               <label htmlFor="name" className={labelClasses}>
                 Nom
@@ -175,14 +233,14 @@ function PublicPage() {
               <label className={labelClasses}>
                 Serez-vous présent ?
               </label>
-              <div className="flex gap-4">
+              <div className="flex flex-col md:flex-row gap-4">
                 <button
                   type="button"
                   onClick={() => setAttending('yes')}
-                  className={`flex-1 py-3 px-4 rounded-lg transition-all duration-200 ${
+                  className={`flex-1 py-3 px-4 rounded-lg transition-all duration-200 active:transform active:scale-[0.98] ${
                     attending === 'yes'
-                      ? 'bg-sage-600 text-white shadow-md'
-                      : 'bg-white border border-sage-200 text-gray-700 hover:border-sage-300 hover:bg-sage-50'
+                      ? 'bg-primary text-white shadow-md'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:border-primary hover:bg-gray-50'
                   }`}
                 >
                   Oui
@@ -190,10 +248,10 @@ function PublicPage() {
                 <button
                   type="button"
                   onClick={() => setAttending('no')}
-                  className={`flex-1 py-3 px-4 rounded-lg transition-all duration-200 ${
+                  className={`flex-1 py-3 px-4 rounded-lg transition-all duration-200 active:transform active:scale-[0.98] ${
                     attending === 'no'
-                      ? 'bg-sage-600 text-white shadow-md'
-                      : 'bg-white border border-sage-200 text-gray-700 hover:border-sage-300 hover:bg-sage-50'
+                      ? 'bg-primary text-white shadow-md'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:border-primary hover:bg-gray-50'
                   }`}
                 >
                   Non
@@ -222,7 +280,7 @@ function PublicPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-sage-600 text-white py-3 px-6 rounded-lg shadow-md hover:bg-sage-700 hover:shadow-lg transition-all duration-200 mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-primary text-white py-3 px-6 rounded-lg shadow-md hover:bg-primary/90 transition-all duration-200 mt-6 disabled:opacity-50 active:transform active:scale-[0.98]"
             >
               {isSubmitting ? 'Envoi en cours...' : 'Envoyer la réponse'}
             </button>
@@ -231,10 +289,10 @@ function PublicPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-sage-50 py-8">
+      <footer className="bg-white/50 py-8">
         <div className="container mx-auto px-4 text-center text-gray-600">
-          <p>Avec amour,</p>
-          <p className="font-semibold">La Famille Sawadogo</p>
+          <p>{settings.footer_text}</p>
+          <p className="font-semibold">{settings.footer_signature}</p>
         </div>
       </footer>
     </>

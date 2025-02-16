@@ -1,7 +1,8 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Gift, LogOut, Plus, Trash2, Check, X, Edit2, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../lib/i18n/LanguageContext';
+import { Plus, Trash2, Edit2, Gift, Users, Settings, Mail, Phone, Euro, Languages } from 'lucide-react';
+import { Pagination } from './Pagination';
 
 type Guest = {
   id: string;
@@ -13,497 +14,815 @@ type Guest = {
   created_at: string;
 };
 
-type GiftItem = {
+type Gift = {
   id: string;
   name: string;
   url: string;
   price: number;
   purchased: boolean;
   purchased_by: string | null;
-  created_at: string;
 };
 
+type Settings = {
+  event_date: string;
+  event_time_start: string;
+  event_time_end: string;
+  event_location: string;
+  hero_title: string;
+  hero_subtitle: string;
+  hero_image: string;
+  footer_text: string;
+  footer_signature: string;
+};
+
+type EditingGuest = Partial<Guest> & { isNew?: boolean };
+type EditingGift = Partial<Gift> & { isNew?: boolean };
+
+const ITEMS_PER_PAGE = 6;
+
 function AdminDashboard() {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = React.useState<'guests' | 'gifts'>('guests');
+  const { t, language, setLanguage } = useLanguage();
+  const [activeTab, setActiveTab] = React.useState<'guests' | 'gifts' | 'settings'>('guests');
   const [guests, setGuests] = React.useState<Guest[]>([]);
-  const [gifts, setGifts] = React.useState<GiftItem[]>([]);
+  const [gifts, setGifts] = React.useState<Gift[]>([]);
+  const [editingGuest, setEditingGuest] = React.useState<EditingGuest | null>(null);
+  const [editingGift, setEditingGift] = React.useState<EditingGift | null>(null);
+  const [settings, setSettings] = React.useState<Settings>({
+    event_date: '',
+    event_time_start: '',
+    event_time_end: '',
+    event_location: '',
+    hero_title: '',
+    hero_subtitle: '',
+    hero_image: '',
+    footer_text: '',
+    footer_signature: '',
+  });
+  const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
-  const [newGift, setNewGift] = React.useState({ name: '', url: '', price: '' });
-  const [showAddGift, setShowAddGift] = React.useState(false);
-  const [editingGuest, setEditingGuest] = React.useState<string | null>(null);
-  const [editedGuest, setEditedGuest] = React.useState<Partial<Guest>>({});
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = React.useState(false);
+  const [guestsPage, setGuestsPage] = React.useState(1);
+  const [giftsPage, setGiftsPage] = React.useState(1);
 
   React.useEffect(() => {
-    checkAuth();
     loadData();
   }, []);
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/login');
-    }
-  };
-
   const loadData = async () => {
     setIsLoading(true);
+    setError('');
+    
     try {
-      const [guestsResponse, giftsResponse] = await Promise.all([
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
+      const [guestsResponse, giftsResponse, settingsResponse] = await Promise.all([
         supabase.from('guests').select('*').order('created_at', { ascending: false }),
-        supabase.from('gift_registry').select('*').order('created_at', { ascending: true })
+        supabase.from('gift_registry').select('*').order('name'),
+        supabase.from('settings').select('*')
       ]);
 
-      if (guestsResponse.data) setGuests(guestsResponse.data);
-      if (giftsResponse.data) setGifts(giftsResponse.data);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      if (guestsResponse.error) throw guestsResponse.error;
+      if (giftsResponse.error) throw giftsResponse.error;
+      if (settingsResponse.error) throw settingsResponse.error;
+
+      setGuests(guestsResponse.data || []);
+      setGifts(giftsResponse.data || []);
+
+      if (settingsResponse.data) {
+        const settingsObj: Record<string, string> = {};
+        settingsResponse.data.forEach(setting => {
+          settingsObj[setting.key] = setting.value;
+        });
+        setSettings(settingsObj as unknown as Settings);
+      }
+    } catch (err: any) {
+      console.error('Error loading data:', err);
+      setError(err.message);
+      
+      if (err.message === 'Not authenticated') {
+        window.location.href = '/login';
+        return;
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/login');
-  };
-
-  const handleAddGift = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { error } = await supabase.from('gift_registry').insert([
-        {
-          name: newGift.name,
-          url: newGift.url,
-          price: parseFloat(newGift.price),
-        },
-      ]);
-
-      if (error) throw error;
-
-      setNewGift({ name: '', url: '', price: '' });
-      setShowAddGift(false);
-      loadData();
-    } catch (error) {
-      console.error('Error adding gift:', error);
-    }
-  };
-
-  const handleDeleteGift = async (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce cadeau ?')) {
-      try {
-        const { error } = await supabase
-          .from('gift_registry')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
-        loadData();
-      } catch (error) {
-        console.error('Error deleting gift:', error);
-      }
-    }
-  };
-
-  const handleToggleGiftPurchased = async (id: string, purchased: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('gift_registry')
-        .update({ purchased })
-        .eq('id', id);
-
-      if (error) throw error;
-      loadData();
-    } catch (error) {
-      console.error('Error updating gift:', error);
-    }
-  };
-
-  const handleEditGuest = (guest: Guest) => {
-    setEditingGuest(guest.id);
-    setEditedGuest(guest);
-  };
-
-  const handleSaveGuest = async () => {
-    if (!editingGuest || !editedGuest) return;
+  const handleDeleteGuest = async (id: string) => {
+    if (!confirm(t('dashboard.confirmDeleteGuest'))) return;
 
     try {
       const { error } = await supabase
         .from('guests')
-        .update(editedGuest)
-        .eq('id', editingGuest);
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      loadData();
+    } catch (err: any) {
+      console.error('Error deleting guest:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteGift = async (id: string) => {
+    if (!confirm(t('dashboard.confirmDeleteGift'))) return;
+
+    try {
+      const { error } = await supabase
+        .from('gift_registry')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      loadData();
+    } catch (err: any) {
+      console.error('Error deleting gift:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleSaveGuest = async () => {
+    if (!editingGuest) return;
+
+    try {
+      const guestData = {
+        name: editingGuest.name || '',
+        email: editingGuest.email || '',
+        phone: editingGuest.phone || '',
+        attending: editingGuest.attending || false,
+        guest_count: editingGuest.guest_count || 1,
+      };
+
+      let error;
+      if (editingGuest.isNew) {
+        ({ error } = await supabase.from('guests').insert([guestData]));
+      } else if (editingGuest.id) {
+        ({ error } = await supabase
+          .from('guests')
+          .update(guestData)
+          .eq('id', editingGuest.id));
+      }
 
       if (error) throw error;
       setEditingGuest(null);
-      setEditedGuest({});
       loadData();
-    } catch (error) {
-      console.error('Error updating guest:', error);
+    } catch (err: any) {
+      console.error('Error saving guest:', err);
+      setError(err.message);
     }
   };
 
-  const handleDeleteGuest = async (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet invité ?')) {
-      try {
-        const { error } = await supabase
-          .from('guests')
-          .delete()
-          .eq('id', id);
+  const handleSaveGift = async () => {
+    if (!editingGift) return;
 
-        if (error) throw error;
-        loadData();
-      } catch (error) {
-        console.error('Error deleting guest:', error);
+    try {
+      const giftData = {
+        name: editingGift.name || '',
+        url: editingGift.url || '',
+        price: editingGift.price || 0,
+        purchased: editingGift.purchased || false,
+      };
+
+      let error;
+      if (editingGift.isNew) {
+        ({ error } = await supabase.from('gift_registry').insert([giftData]));
+      } else if (editingGift.id) {
+        ({ error } = await supabase
+          .from('gift_registry')
+          .update(giftData)
+          .eq('id', editingGift.id));
       }
+
+      if (error) throw error;
+      setEditingGift(null);
+      loadData();
+    } catch (err: any) {
+      console.error('Error saving gift:', err);
+      setError(err.message);
     }
   };
 
-  const totalAttending = guests.reduce((sum, guest) => {
-    return guest.attending ? sum + guest.guest_count : sum;
-  }, 0);
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setError('');
 
-  const totalGifts = gifts.length;
-  const purchasedGifts = gifts.filter(gift => gift.purchased).length;
+    try {
+      const updates = Object.entries(settings).map(([key, value]) => ({
+        key,
+        value: String(value),
+      }));
+
+      const { error } = await supabase
+        .from('settings')
+        .upsert(
+          updates,
+          { onConflict: 'key', ignoreDuplicates: false }
+        );
+
+      if (error) throw error;
+      alert(t('settings.updateSuccess'));
+    } catch (err: any) {
+      console.error('Error updating settings:', err);
+      setError(t('settings.updateError'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const paginatedGuests = guests.slice(
+    (guestsPage - 1) * ITEMS_PER_PAGE,
+    guestsPage * ITEMS_PER_PAGE
+  );
+
+  const paginatedGifts = gifts.slice(
+    (giftsPage - 1) * ITEMS_PER_PAGE,
+    giftsPage * ITEMS_PER_PAGE
+  );
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center text-gray-600">
+          {t('common.loading')}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Dashboard Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard Admin</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.title')}</h1>
+          <p className="text-gray-600">
+            {t('dashboard.description')}
+          </p>
+        </div>
+        <div className="relative">
+          <button
+            onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2"
+            title="Change Language"
+          >
+            <Languages className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium text-gray-700">
+              {language === 'fr' ? 'Français' : 'English'}
+            </span>
+          </button>
+
+          {isLanguageMenuOpen && (
+            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg p-2 z-50">
+              <div className="space-y-1">
+                <button
+                  onClick={() => {
+                    setLanguage('fr');
+                    setIsLanguageMenuOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm rounded-lg text-left transition-colors ${
+                    language === 'fr'
+                      ? 'bg-primary text-white'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  Français
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguage('en');
+                    setIsLanguageMenuOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm rounded-lg text-left transition-colors ${
+                    language === 'en'
+                      ? 'bg-primary text-white'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-4 mb-8">
         <button
-          onClick={handleLogout}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sage-600 hover:text-sage-700"
+          onClick={() => setActiveTab('guests')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors ${
+            activeTab === 'guests'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
         >
-          <LogOut className="w-4 h-4" />
-          <span>Déconnexion</span>
+          <Users className="w-5 h-5" />
+          {t('dashboard.guestList')}
+        </button>
+        <button
+          onClick={() => setActiveTab('gifts')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors ${
+            activeTab === 'gifts'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Gift className="w-5 h-5" />
+          {t('dashboard.giftList')}
+        </button>
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors ${
+            activeTab === 'settings'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Settings className="w-5 h-5" />
+          {t('dashboard.settings')}
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center gap-4">
-            <Users className="w-8 h-8 text-sage-600" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">Invités Confirmés</h3>
-              <p className="text-2xl font-bold text-sage-600">{totalAttending}</p>
-            </div>
+      {activeTab === 'guests' && (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setEditingGuest({ isNew: true })}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              {t('common.add')} {t('dashboard.guest')}
+            </button>
           </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center gap-4">
-            <Gift className="w-8 h-8 text-sage-600" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">Cadeaux</h3>
-              <p className="text-2xl font-bold text-sage-600">
-                {purchasedGifts}/{totalGifts}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('guests')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'guests'
-                ? 'border-sage-600 text-sage-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Liste des Invités
-          </button>
-          <button
-            onClick={() => setActiveTab('gifts')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'gifts'
-                ? 'border-sage-600 text-sage-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Liste de Naissance
-          </button>
-        </nav>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Chargement...</p>
-        </div>
-      ) : (
-        <>
-          {activeTab === 'guests' && (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nom
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Invités
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {guests.map((guest) => (
-                    <tr key={guest.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {editingGuest === guest.id ? (
-                          <input
-                            type="text"
-                            value={editedGuest.name || ''}
-                            onChange={(e) => setEditedGuest({ ...editedGuest, name: e.target.value })}
-                            className="w-full px-2 py-1 border rounded"
-                          />
-                        ) : (
-                          <div className="text-sm font-medium text-gray-900">{guest.name}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {editingGuest === guest.id ? (
-                          <div className="space-y-2">
-                            <input
-                              type="email"
-                              value={editedGuest.email || ''}
-                              onChange={(e) => setEditedGuest({ ...editedGuest, email: e.target.value })}
-                              className="w-full px-2 py-1 border rounded"
-                              placeholder="Email"
-                            />
-                            <input
-                              type="tel"
-                              value={editedGuest.phone || ''}
-                              onChange={(e) => setEditedGuest({ ...editedGuest, phone: e.target.value })}
-                              className="w-full px-2 py-1 border rounded"
-                              placeholder="Téléphone"
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-500">
-                            {guest.email && <div>{guest.email}</div>}
-                            
-                            {guest.phone && <div>{guest.phone}</div>}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {editingGuest === guest.id ? (
-                          <select
-                            value={editedGuest.attending ? 'true' : 'false'}
-                            onChange={(e) => setEditedGuest({ ...editedGuest, attending: e.target.value === 'true' })}
-                            className="w-full px-2 py-1 border rounded"
-                          >
-                            <option value="true">Présent</option>
-                            <option value="false">Absent</option>
-                          </select>
-                        ) : (
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            guest.attending
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {guest.attending ? 'Présent' : 'Absent'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {editingGuest === guest.id ? (
-                          <input
-                            type="number"
-                            value={editedGuest.guest_count || 0}
-                            onChange={(e) => setEditedGuest({ ...editedGuest, guest_count: parseInt(e.target.value) })}
-                            className="w-full px-2 py-1 border rounded"
-                            min="1"
-                            max="4"
-                          />
-                        ) : (
-                          <div className="text-sm text-gray-500">{guest.guest_count}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {editingGuest === guest.id ? (
-                            <button
-                              onClick={handleSaveGuest}
-                              className="p-1 text-sage-600 hover:text-sage-700 rounded-full"
-                            >
-                              <Save className="w-5 h-5" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleEditGuest(guest)}
-                              className="p-1 text-sage-600 hover:text-sage-700 rounded-full"
-                            >
-                              <Edit2 className="w-5 h-5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteGuest(guest.id)}
-                            className="p-1 text-red-600 hover:text-red-700 rounded-full"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {activeTab === 'gifts' && (
-            <div>
-              <div className="mb-6">
-                <button
-                  onClick={() => setShowAddGift(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Ajouter un cadeau</span>
-                </button>
-              </div>
-
-              {showAddGift && (
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                  <form onSubmit={handleAddGift} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Nom du cadeau</label>
-                      <input
-                        type="text"
-                        value={newGift.name}
-                        onChange={(e) => setNewGift(prev => ({ ...prev, name: e.target.value }))}
-                        className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-sage-500 focus:border-sage-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">URL</label>
-                      <input
-                        type="url"
-                        value={newGift.url}
-                        onChange={(e) => setNewGift(prev => ({ ...prev, url: e.target.value }))}
-                        className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-sage-500 focus:border-sage-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Prix</label>
-                      <input
-                        type="number"
-                        value={newGift.price}
-                        onChange={(e) => setNewGift(prev => ({ ...prev, price: e.target.value }))}
-                        className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-sage-500 focus:border-sage-500"
-                        step="0.01"
-                        required
-                      />
-                    </div>
-                    <div className="flex justify-end gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddGift(false)}
-                        className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-sage-600 text-white rounded-lg hover:bg-sage-700"
-                      >
-                        Ajouter
-                      </button>
-                    </div>
-                  </form>
+          {editingGuest && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                <h3 className="text-xl font-semibold mb-4">
+                  {editingGuest.isNew ? t('common.add') : t('common.edit')} {t('dashboard.guest')}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.name')}
+                    </label>
+                    <input
+                      type="text"
+                      value={editingGuest.name || ''}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, name: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.email')}
+                    </label>
+                    <input
+                      type="email"
+                      value={editingGuest.email || ''}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, email: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.phone')}
+                    </label>
+                    <input
+                      type="tel"
+                      value={editingGuest.phone || ''}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, phone: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.status')}
+                    </label>
+                    <select
+                      value={editingGuest.attending ? 'yes' : 'no'}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, attending: e.target.value === 'yes' })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    >
+                      <option value="yes">{t('dashboard.attending')}</option>
+                      <option value="no">{t('dashboard.notAttending')}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.guestCount')}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="4"
+                      value={editingGuest.guest_count || 1}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, guest_count: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
                 </div>
-              )}
-
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cadeau
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Prix
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {gifts.map((gift) => (
-                      <tr key={gift.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{gift.name}</div>
-                          {gift.url && (
-                            <a
-                              href={gift.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-sage-600 hover:text-sage-700"
-                            >
-                              Voir →
-                            </a>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            {gift.price.toFixed(2)} €
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            gift.purchased
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {gift.purchased ? 'Acheté' : 'Disponible'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleToggleGiftPurchased(gift.id, !gift.purchased)}
-                              className={`p-1 rounded-full ${
-                                gift.purchased
-                                  ? 'text-green-600 hover:text-green-700'
-                                  : 'text-gray-400 hover:text-gray-500'
-                              }`}
-                            >
-                              {gift.purchased ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteGift(gift.id)}
-                              className="p-1 text-red-600 hover:text-red-700 rounded-full"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setEditingGuest(null)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    onClick={handleSaveGuest}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
               </div>
             </div>
           )}
-        </>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedGuests.map((guest) => (
+              <div
+                key={guest.id}
+                className="bg-white/50 backdrop-blur-sm rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{guest.name}</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingGuest(guest)}
+                      className="p-2 text-gray-600 hover:text-primary transition-colors rounded-lg hover:bg-gray-100"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGuest(guest.id)}
+                      className="p-2 text-gray-600 hover:text-red-600 transition-colors rounded-lg hover:bg-gray-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {guest.email && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Mail className="w-4 h-4" />
+                      <span className="text-sm">{guest.email}</span>
+                    </div>
+                  )}
+                  {guest.phone && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Phone className="w-4 h-4" />
+                      <span className="text-sm">{guest.phone}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        guest.attending
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {guest.attending ? t('dashboard.attending') : t('dashboard.notAttending')}
+                    </span>
+                    {guest.attending && (
+                      <span className="text-sm text-gray-600">
+                        ({guest.guest_count} {t('dashboard.guests')})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={guestsPage}
+            totalItems={guests.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setGuestsPage}
+          />
+        </div>
+      )}
+
+      {activeTab === 'gifts' && (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setEditingGift({ isNew: true })}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              {t('dashboard.addGift')}
+            </button>
+          </div>
+
+          {editingGift && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                <h3 className="text-xl font-semibold mb-4">
+                  {editingGift.isNew ? t('common.add') : t('common.edit')} {t('dashboard.gifts')}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.giftName')}
+                    </label>
+                    <input
+                      type="text"
+                      value={editingGift.name || ''}
+                      onChange={(e) => setEditingGift({ ...editingGift, name: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.giftUrl')}
+                    </label>
+                    <input
+                      type="url"
+                      value={editingGift.url || ''}
+                      onChange={(e) => setEditingGift({ ...editingGift, url: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.giftPrice')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingGift.price || ''}
+                      onChange={(e) => setEditingGift({ ...editingGift, price: parseFloat(e.target.value) })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('dashboard.giftStatus')}
+                    </label>
+                    <select
+                      value={editingGift.purchased ? 'yes' : 'no'}
+                      onChange={(e) => setEditingGift({ ...editingGift, purchased: e.target.value === 'yes' })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    >
+                      <option value="no">{t('dashboard.available')}</option>
+                      <option value="yes">{t('dashboard.purchased')}</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setEditingGift(null)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    onClick={handleSaveGift}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedGifts.map((gift) => (
+              <div
+                key={gift.id}
+                className="bg-white/50 backdrop-blur-sm rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{gift.name}</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingGift(gift)}
+                      className="p-2 text-gray-600 hover:text-primary transition-colors rounded-lg hover:bg-gray-100"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGift(gift.id)}
+                      className="p-2 text-gray-600 hover:text-red-600 transition-colors rounded-lg hover:bg-gray-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Euro className="w-4 h-4" />
+                    <span className="text-sm">
+                      {new Intl.NumberFormat('fr-FR', {
+                        style: 'currency',
+                        currency: 'EUR',
+                      }).format(gift.price)}
+                    </span>
+                  </div>
+                  {gift.url && (
+                    <a
+                      href={gift.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary-dark transition-colors text-sm inline-flex items-center gap-1"
+                    >
+                      {t('dashboard.viewGift')} →
+                    </a>
+                  )}
+                  <div>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        gift.purchased
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {gift.purchased ? t('dashboard.purchased') : t('dashboard.available')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={giftsPage}
+            totalItems={gifts.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setGiftsPage}
+          />
+        </div>
+      )}
+
+      {activeTab === 'settings' && (
+        <form onSubmit={handleUpdateSettings} className="max-w-2xl mx-auto space-y-8">
+          <div className="bg-white/50 backdrop-blur-sm p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              {t('settings.event.title')}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.event.date')}
+                </label>
+                <input
+                  type="date"
+                  value={settings.event_date}
+                  onChange={(e) =>
+                    setSettings({ ...settings, event_date: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.event.location')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.event_location}
+                  onChange={(e) =>
+                    setSettings({ ...settings, event_location: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.event.startTime')}
+                </label>
+                <input
+                  type="time"
+                  value={settings.event_time_start}
+                  onChange={(e) =>
+                    setSettings({ ...settings, event_time_start: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.event.endTime')}
+                </label>
+                <input
+                  type="time"
+                  value={settings.event_time_end}
+                  onChange={(e) =>
+                    setSettings({ ...settings, event_time_end: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/50 backdrop-blur-sm p-6 rounded-lg shadow-sm">
+            <h3 className="text- lg font-semibold text-gray-800 mb-4">
+              {t('settings.homepage.title')}
+            </h3>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.homepage.mainTitle')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.hero_title}
+                  onChange={(e) =>
+                    setSettings({ ...settings, hero_title: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.homepage.subtitle')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.hero_subtitle}
+                  onChange={(e) =>
+                    setSettings({ ...settings, hero_subtitle: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.homepage.backgroundImage')}
+                </label>
+                <input
+                  type="url"
+                  value={settings.hero_image}
+                  onChange={(e) =>
+                    setSettings({ ...settings, hero_image: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/50 backdrop-blur-sm p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              {t('settings.footer.title')}
+            </h3>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.footer.text')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.footer_text}
+                  onChange={(e) =>
+                    setSettings({ ...settings, footer_text: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.footer.signature')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.footer_signature}
+                  onChange={(e) =>
+                    setSettings({ ...settings, footer_signature: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? t('settings.saving') : t('common.save')}
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );
