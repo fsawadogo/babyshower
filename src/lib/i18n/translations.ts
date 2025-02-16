@@ -1,3 +1,6 @@
+import { url } from "inspector";
+import { title } from "process";
+
 export type Language = 'fr' | 'en';
 
 export const translations = {
@@ -62,6 +65,11 @@ export const translations = {
       language: {
         title: 'Paramètres de langue',
         defaultLanguage: 'Langue par défaut',
+      },
+      registry:{
+        title: 'Paramètres du registre',
+        url:'URL du registre',
+        name: 'Nom du registre',
       },
       event: {
         title: "Paramètres de l'événement",
@@ -166,6 +174,11 @@ export const translations = {
       language: {
         title: 'Language Settings',
         defaultLanguage: 'Default Language',
+      },
+      registry:{
+        title: 'Registry Settings',
+        url:'Registry URL',
+        name: 'Registry Name',
       },
       event: {
         title: 'Event Settings',

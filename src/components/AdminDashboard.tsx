@@ -33,6 +33,8 @@ type Settings = {
   hero_image: string;
   footer_text: string;
   footer_signature: string;
+  registry_name: string;
+  registry_url: string;
 };
 
 type EditingGuest = Partial<Guest> & { isNew?: boolean };
@@ -57,6 +59,8 @@ function AdminDashboard() {
     hero_image: '',
     footer_text: '',
     footer_signature: '',
+    registry_name: '',
+    registry_url: ''
   });
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
@@ -733,7 +737,7 @@ function AdminDashboard() {
           </div>
 
           <div className="bg-white/50 backdrop-blur-sm p-6 rounded-lg shadow-sm">
-            <h3 className="text- lg font-semibold text-gray-800 mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
               {t('settings.homepage.title')}
             </h3>
             <div className="space-y-6">
@@ -774,6 +778,42 @@ function AdminDashboard() {
                     setSettings({ ...settings, hero_image: e.target.value })
                   }
                   className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/50 backdrop-blur-sm p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              {t('settings.registry.title')}
+            </h3>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.registry.name')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.registry_name}
+                  onChange={(e) =>
+                    setSettings({ ...settings, registry_name: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="Amazon, MyRegistry, etc."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('settings.registry.url')}
+                </label>
+                <input
+                  type="url"
+                  value={settings.registry_url}
+                  onChange={(e) =>
+                    setSettings({ ...settings, registry_url: e.target.value })
+                  }
+                  className="mt-1 block w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="https://www.amazon.fr/baby-reg/..."
                 />
               </div>
             </div>

@@ -14,6 +14,18 @@ type EventSettings = {
   footer_signature: string;
 };
 
+const defaultSettings: EventSettings = {
+  event_date: '2025-03-15',
+  event_time_start: '14:30',
+  event_time_end: '18:00',
+  event_location: 'À confirmer',
+  hero_title: 'Bienvenue Bébé Sawadogo',
+  hero_subtitle: 'Rejoignez-nous pour célébrer notre petit miracle',
+  hero_image: 'https://images.unsplash.com/photo-1558244661-d248897f7bc4?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80',
+  footer_text: 'Avec amour,',
+  footer_signature: 'La Famille Sawadogo'
+};
+
 function PublicPage() {
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
@@ -22,17 +34,7 @@ function PublicPage() {
   const [guests, setGuests] = React.useState(1);
   const [formError, setFormError] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [settings, setSettings] = React.useState<EventSettings>({
-    event_date: '2025-03-15',
-    event_time_start: '14:30',
-    event_time_end: '18:00',
-    event_location: 'À confirmer',
-    hero_title: 'Bienvenue Bébé Sawadogo',
-    hero_subtitle: 'Rejoignez-nous pour célébrer notre petit miracle',
-    hero_image: 'https://images.unsplash.com/photo-1558244661-d248897f7bc4?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80',
-    footer_text: 'Avec amour,',
-    footer_signature: 'La Famille Sawadogo'
-  });
+  const [settings, setSettings] = React.useState<EventSettings>(defaultSettings);
 
   React.useEffect(() => {
     loadSettings();
@@ -44,27 +46,66 @@ function PublicPage() {
         .from('settings')
         .select('*');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading settings:', error);
+        return; // Use default settings on error
+      }
 
-      if (data) {
+      if (data && data.length > 0) {
         const settingsObj: Record<string, string> = {};
         data.forEach(setting => {
           settingsObj[setting.key] = setting.value;
         });
-        setSettings(settingsObj as unknown as EventSettings);
+        
+        // Merge with default settings to ensure all fields exist
+        setSettings(current => ({
+          ...current,
+          ...settingsObj,
+        }));
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      // Keep using default settings on error
     }
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat('fr-FR', {
-      day: 'numeric',
+    // Create a date object in UTC to prevent timezone offset
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
       month: 'long',
-      year: 'numeric'
-    }).format(date);
+      day: 'numeric',
+      timeZone: 'UTC' // Force UTC to prevent timezone conversion
+    };
+    
+    let formatted = date.toLocaleDateString('fr-FR', options);
+    
+    // Capitalize first letter of weekday and month
+    formatted = formatted.split(' ').map((word, index) => {
+      if (index === 0 || index === 2) { // weekday and month
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      }
+      return word;
+    }).join(' ');
+    
+    return formatted;
+  };
+
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours, 10));
+    date.setMinutes(parseInt(minutes, 10));
+    
+    return date.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,6 +140,7 @@ function PublicPage() {
       setGuests(1);
       alert('Merci pour votre réponse !');
     } catch (err: any) {
+      console.error('Error submitting form:', err);
       setFormError('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);
@@ -143,7 +185,9 @@ function PublicPage() {
           <div className="text-center bg-white/50 backdrop-blur-sm p-4 md:p-6 rounded-lg shadow-sm">
             <Clock className="w-8 h-8 text-primary mx-auto mb-4" />
             <h3 className="font-semibold text-gray-800 mb-2">Heure</h3>
-            <p className="text-gray-600">{settings.event_time_start} - {settings.event_time_end}</p>
+            <p className="text-gray-600">
+              {formatTime(settings.event_time_start)} - {formatTime(settings.event_time_end)}
+            </p>
           </div>
           <div className="text-center bg-white/50 backdrop-blur-sm p-4 md:p-6 rounded-lg shadow-sm">
             <MapPin className="w-8 h-8 text-primary mx-auto mb-4" />
@@ -161,15 +205,15 @@ function PublicPage() {
             <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">Liste de Naissance</h2>
             <p className="text-gray-600 max-w-2xl mx-auto px-4">
               Votre présence est notre plus beau cadeau, mais si vous souhaitez offrir quelque chose,
-              nous avons créé une liste de naissance sur Amazon :
+              nous avons créé une liste de naissance sur MyRegistry :
             </p>
           </div>
           <div className="max-w-md mx-auto px-4">
             <a
-              href="#"
+              href="https://www.myregistry.com"
               className="block bg-white p-6 md:p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow text-center active:transform active:scale-[0.98]"
             >
-              <h3 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2">Amazon</h3>
+              <h3 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2">My Registry</h3>
               <p className="text-primary mt-2">Voir la Liste →</p>
             </a>
           </div>
