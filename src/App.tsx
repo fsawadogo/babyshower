@@ -5,7 +5,7 @@ import AdminDashboard from './components/AdminDashboard';
 import PublicPage from './components/PublicPage';
 import { ThemeCustomizer } from './components/ThemeCustomizer';
 import { useTheme } from './lib/theme/ThemeContext';
-import { LogOut } from 'lucide-react';
+import { LogOut, LogIn } from 'lucide-react';
 import { useLanguage } from './lib/i18n/LanguageContext';
 
 function App() {
@@ -40,7 +40,7 @@ function App() {
             Bébé Sawadogo
           </Link>
           <div className="flex items-center gap-2 md:gap-4">
-            {isAdmin && (
+            {isAdmin ? (
               <>
                 <ThemeCustomizer />
                 <Link
@@ -58,6 +58,15 @@ function App() {
                   <span className="hidden md:inline">{t('auth.logout')}</span>
                 </button>
               </>
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center gap-2 text-gray-600 hover:text-primary font-medium transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
+                title={t('auth.login')}
+              >
+                <LogIn className="w-5 h-5" />
+                <span className="hidden md:inline">{t('auth.login')}</span>
+              </Link>
             )}
           </div>
         </div>
