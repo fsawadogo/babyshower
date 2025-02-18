@@ -210,7 +210,7 @@ function PublicPage() {
           </div>
           <div className="max-w-md mx-auto px-4">
             <a
-              href="https://www.myregistry.com"
+              href="https://www.myregistry.com/wishlist/gwladys-thiombiano-and-fa-al-sawadogo-lasalle-qc/4695187/giftlist?publicUrlName=GwladysFaicalBabyshower"
               className="block bg-white p-6 md:p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow text-center active:transform active:scale-[0.98]"
             >
               <h3 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2">My Registry</h3>
